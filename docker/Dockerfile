@@ -1,7 +1,7 @@
 # ROCm ComfyUI Dockerfile
 # Based on AMD's official ROCm PyTorch container
 
-FROM rocm/pytorch:pytorch:rocm6.1.2_ubuntu20.04_py3.10_pytorch_release-2.1.2
+FROM rocm/pytorch:rocm6.1.2_ubuntu20.04_py3.10_pytorch_release-2.1.2
 
 # Set working directory
 WORKDIR /workspace
