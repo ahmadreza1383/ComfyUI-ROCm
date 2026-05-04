@@ -22,7 +22,7 @@ jobs:
       # 1) Build Docker Image
       - name: Build Docker Image
         run: |
-          docker build -t myimage:latest .
+          docker build -f docker/Dockerfile -t myimage:latest .
 
       # 2) Save image as TAR file
       - name: Export Image as TAR
