@@ -14,6 +14,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Free disk space
+        run: |
+          echo "Disk before cleanup:"
+          df -h
+
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache
+
+          docker system prune -af || true
+
+          echo "Disk after cleanup:"
+          df -h
+
       - name: Install tools
         run: |
           sudo apt update
@@ -23,19 +38,9 @@ jobs:
         run: |
           docker build -f docker/Dockerfile -t comfyui-rocm:latest .
 
-      - name: Export Image as TAR
+      - name: Export + Compress Docker Image (stream)
         run: |
-          docker save comfyui-rocm:latest -o comfyui-rocm.tar
-          ls -lh comfyui-rocm.tar
-
-      - name: Hash original TAR
-        run: |
-          sha256sum comfyui-rocm.tar > comfyui-rocm.tar.sha256
-          md5sum comfyui-rocm.tar > comfyui-rocm.tar.md5
-
-      - name: Compress TAR with zstd
-        run: |
-          zstd -T0 -15 --rm comfyui-rocm.tar -o comfyui-rocm.tar.zst
+          docker save comfyui-rocm:latest | zstd -T0 -15 -o comfyui-rocm.tar.zst
           ls -lh comfyui-rocm.tar.zst
 
       - name: Hash compressed archive
@@ -43,7 +48,7 @@ jobs:
           sha256sum comfyui-rocm.tar.zst > comfyui-rocm.tar.zst.sha256
           md5sum comfyui-rocm.tar.zst > comfyui-rocm.tar.zst.md5
 
-      - name: Split archive with zst suffix
+      - name: Split archive
         run: |
           split -b 1900M -d -a 3 \
             --additional-suffix=.zst \
@@ -65,17 +70,16 @@ jobs:
             comfyui-rocm Docker image build and export.
 
             Restore:
-            1. Download all `comfyui-rocm.part.*.zst` files
+
+            1. Download all `comfyui-rocm.part.*.zst`
             2. Join them:
                `cat $(ls comfyui-rocm.part.*.zst | sort -V) > comfyui-rocm.tar.zst`
             3. Decompress:
-               `zstd -d comfyui-rocm.tar.zst -o comfyui-rocm.tar`
-            4. Load:
+               `zstd -d comfyui-rocm.tar.zst`
+            4. Load image:
                `docker load -i comfyui-rocm.tar`
           files: |
             comfyui-rocm.part.*.zst
-            comfyui-rocm.tar.sha256
-            comfyui-rocm.tar.md5
             comfyui-rocm.tar.zst.sha256
             comfyui-rocm.tar.zst.md5
             comfyui-rocm.parts.sha256
