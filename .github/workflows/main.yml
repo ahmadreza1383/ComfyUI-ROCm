@@ -47,15 +47,15 @@ jobs:
       - name: Tag image for GHCR
         run: |
           docker tag comfyui-rocm:latest ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:latest
-          docker tag comfyui-rocm:latest ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:${{ github.run_id }}
+          docker tag comfyui-rocm:latest ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:6.1.2
 
       - name: Push image to GHCR
         run: |
           docker push ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:latest
-          docker push ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:${{ github.run_id }}
+          docker push ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:6.1.2
 
       - name: Print image URLs
         run: |
           echo "Image pushed successfully:"
           echo "ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:latest"
-          echo "ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:${{ github.run_id }}"
+          echo "ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:6.1.2
