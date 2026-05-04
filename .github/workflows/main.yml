@@ -1,0 +1,109 @@
+name: Build Docker Image and Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt update
+          sudo apt install -y xz-utils coreutils
+
+      # 1) Build Docker Image
+      - name: Build Docker Image
+        run: |
+          docker build -t myimage:latest .
+
+      # 2) Save image as TAR file
+      - name: Export Image as TAR
+        run: |
+          docker save myimage:latest -o image.tar
+          ls -lh image.tar
+
+      # 3) Original file hashes (before compression)
+      - name: Hash original image.tar
+        run: |
+          sha256sum image.tar > original.sha256
+          md5sum image.tar > original.md5
+
+      # 4) Compress with xz
+      - name: Compress image.tar
+        run: |
+          tar -I 'xz -T0 -9' -cf image.tar.xz image.tar
+          ls -lh image.tar.xz
+
+      # 5) Hash compressed file
+      - name: Hash compressed file
+        run: |
+          sha256sum image.tar.xz > image.tar.xz.sha256
+          md5sum image.tar.xz > image.tar.xz.md5
+
+      # 6) Split file if > 2GB
+      - name: Split archive
+        run: |
+          split -b 1900M image.tar.xz image.part.
+
+      # 7) Hash each split part
+      - name: Hash split parts
+        run: |
+          sha256sum image.part.* > parts.sha256
+          md5sum image.part.* > parts.md5
+
+      # 8) Create Release
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: docker-build-${{ github.run_id }}
+          name: Docker Build ${{ github.run_id }}
+          body: |
+            Docker image built and exported.
+
+            --------------------------------
+            Original Image Tar SHA256
+            --------------------------------
+            $(cat original.sha256)
+
+            --------------------------------
+            Original Image Tar MD5
+            --------------------------------
+            $(cat original.md5)
+
+            --------------------------------
+            Compressed File SHA256
+            --------------------------------
+            $(cat image.tar.xz.sha256)
+
+            --------------------------------
+            Compressed File MD5
+            --------------------------------
+            $(cat image.tar.xz.md5)
+
+            Split part hashes included as files.
+
+          files: |
+            image.part.*
+            original.sha256
+            original.md5
+            image.tar.xz.sha256
+            image.tar.xz.md5
+            parts.sha256
+            parts.md5
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 9) Print Release URL
+      - name: Print Release URL
+        run: |
+          echo "Release ready:"
+          echo "https://github.com/${{ github.repository }}/releases/tag/docker-build-${{ github.run_id }}"
