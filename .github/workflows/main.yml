@@ -1,4 +1,4 @@
-name: Build comfyui-rocm Docker Image and Release
+name: Build comfyui-rocm Docker Image and Push to GHCR
 
 on:
   workflow_dispatch:
@@ -8,7 +8,8 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout
@@ -29,65 +30,32 @@ jobs:
           echo "Disk after cleanup:"
           df -h
 
-      - name: Install tools
+      - name: Set lowercase owner
+        id: vars
         run: |
-          sudo apt update
-          sudo apt install -y zstd coreutils
+          OWNER_LC=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
+          echo "owner_lc=$OWNER_LC" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build Docker Image
         run: |
           docker build -f docker/Dockerfile -t comfyui-rocm:latest .
 
-      - name: Export + Compress Docker Image (stream)
+      - name: Tag image for GHCR
         run: |
-          docker save comfyui-rocm:latest | zstd -T0 -15 -o comfyui-rocm.tar.zst
-          ls -lh comfyui-rocm.tar.zst
+          docker tag comfyui-rocm:latest ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:latest
+          docker tag comfyui-rocm:latest ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:${{ github.run_id }}
 
-      - name: Hash compressed archive
+      - name: Push image to GHCR
         run: |
-          sha256sum comfyui-rocm.tar.zst > comfyui-rocm.tar.zst.sha256
-          md5sum comfyui-rocm.tar.zst > comfyui-rocm.tar.zst.md5
+          docker push ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:latest
+          docker push ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:${{ github.run_id }}
 
-      - name: Split archive
+      - name: Print image URLs
         run: |
-          split -b 1900M -d -a 3 \
-            --additional-suffix=.zst \
-            comfyui-rocm.tar.zst \
-            comfyui-rocm.part.
-          ls -lh comfyui-rocm.part.*.zst
-
-      - name: Hash split parts
-        run: |
-          sha256sum comfyui-rocm.part.*.zst > comfyui-rocm.parts.sha256
-          md5sum comfyui-rocm.part.*.zst > comfyui-rocm.parts.md5
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: comfyui-rocm-${{ github.run_id }}
-          name: comfyui-rocm ${{ github.run_id }}
-          body: |
-            comfyui-rocm Docker image build and export.
-
-            Restore:
-
-            1. Download all `comfyui-rocm.part.*.zst`
-            2. Join them:
-               `cat $(ls comfyui-rocm.part.*.zst | sort -V) > comfyui-rocm.tar.zst`
-            3. Decompress:
-               `zstd -d comfyui-rocm.tar.zst`
-            4. Load image:
-               `docker load -i comfyui-rocm.tar`
-          files: |
-            comfyui-rocm.part.*.zst
-            comfyui-rocm.tar.zst.sha256
-            comfyui-rocm.tar.zst.md5
-            comfyui-rocm.parts.sha256
-            comfyui-rocm.parts.md5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Print Release URL
-        run: |
-          echo "Release ready:"
-          echo "https://github.com/${{ github.repository }}/releases/tag/comfyui-rocm-${{ github.run_id }}"
+          echo "Image pushed successfully:"
+          echo "ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:latest"
+          echo "ghcr.io/${{ steps.vars.outputs.owner_lc }}/comfyui-rocm:${{ github.run_id }}"
